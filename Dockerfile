@@ -69,6 +69,10 @@ ENV AGENT_OUTPUTS_DIR=/app/backend/data/agent-outputs
 # 默认端口
 EXPOSE 8000
 
+# 健康检查：探测后端 /health 端点（curl 已在上方安装）
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
+
 # 可选预拉取 npx MCP 包；默认关闭，避免普通打包反复下载临时 npm 包。
 # file-reader 已是 Python 实现，不再需要预拉取 @modelcontextprotocol/server-filesystem。
 # Playwright 能力由独立 Skill sandbox 镜像提供，app 镜像不预拉取 @playwright/mcp。
@@ -81,4 +85,7 @@ RUN --mount=type=cache,target=/root/.npm \
       echo "Skipping npx MCP package prewarm"; \
     fi
 
+# 用 tini 作 init（已在上方安装）：正确转发信号并回收僵尸进程，
+# 对会派生子进程（如 npx MCP、skill 脚本）的场景尤为重要。
+ENTRYPOINT ["tini", "--"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
